@@ -2,19 +2,12 @@ import React from 'react';
 import FilterPanel from './components/FilterPanel.jsx';
 import HeaderInfo from './components/HeaderInfo.jsx';
 import StatusCards from './components/StatusCards.jsx';
-// Importa o novo componente de gráfico de barras
 import PerformanceBarChart from './components/PerformanceBarChart.jsx'; 
 import BrazilMap from './components/BrazilMap.jsx';
 import XlsxUploader from './components/XlsxUploader.jsx'; 
 import { DataProcessor } from './utils/dataProcessor.jsx'; 
-import { createClient } from '@supabase/supabase-js'; 
 import { supabase } from './utils/supabaseClient.js'; 
 
-
-// Substitua 'YOUR_SUPABASE_URL' e 'YOUR_SUPABASE_ANON_KEY' pelos seus valores reais do Supabase
-// (Estas constantes não são mais usadas aqui, mas mantidas por segurança caso precise de debug)
-// const SUPABASE_URL = 'YOUR_SUPABASE_URL'; 
-// const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; 
 
 function reportError(error) {
     console.error('Um erro foi reportado:', error);
@@ -31,48 +24,60 @@ function App() {
 
     React.useEffect(() => {
         if (!supabase) {
-            console.error('Erro: Cliente Supabase (importado de supabaseClient.js) é nulo ou não está inicializado.');
+            console.error('App.jsx: Erro: Cliente Supabase (importado de supabaseClient.js) é nulo ou não está inicializado.');
             setInitError(true);
         } else {
-            console.log('Cliente Supabase disponível via importação.');
+            console.log('App.jsx: Cliente Supabase disponível via importação e parece válido.');
         }
     }, []); 
 
     const loadDashboardData = React.useCallback(async (filterParams) => {
+        console.log('App.jsx: loadDashboardData acionada com filterParams:', JSON.stringify(filterParams));
         try {
             if (!supabase || initError) { 
-                console.warn('Cliente Supabase não está pronto para carregar dados.');
+                console.warn('App.jsx: Cliente Supabase não está pronto ou erro de inicialização. Não é possível carregar dados.');
                 setLoading(false);
                 return; 
             }
 
             setLoading(true);
+            // Passa o cliente Supabase (o 'supabase' importado) para o DataProcessor
             const data = await DataProcessor.fetchAndProcessDashboardData(supabase, filterParams);
+            // Adicionado rawData para debug
+            console.log('App.jsx: loadDashboardData recebeu dados processados. Tamanho total de rawData:', data.rawData ? data.rawData.length : 'N/A');
             setDashboardData(data);
             setLoading(false);
         } catch (error) {
-            console.error('Error loading dashboard data:', error);
+            console.error('App.jsx: Erro ao carregar dados do dashboard:', error);
             setLoading(false);
             setInitError(true); 
             reportError(error);
         }
     }, [supabase, initError]); 
 
+    // Adiciona uma função para recarregar o dashboard após um upload bem-sucedido
+    const handleUploadSuccess = React.useCallback(() => {
+        console.log('App.jsx: Upload bem-sucedido. Recarregando dashboard...');
+        loadDashboardData(filters); // Recarrega com os filtros atuais
+    }, [loadDashboardData, filters]); // Depende de loadDashboardData e filters
+
     React.useEffect(() => {
+        console.log('App.jsx: useEffect principal. Filters:', JSON.stringify(filters), 'Supabase existe:', !!supabase, 'InitError:', initError);
+        // Este useEffect agora depende do `supabase` importado estar pronto.
         if (supabase && !initError) { 
             loadDashboardData(filters);
         } else if (initError) {
-            console.error('Não é possível carregar dados devido a um erro de inicialização do Supabase.');
+            console.error('App.jsx: Não é possível carregar dados devido a um erro de inicialização do Supabase.');
         }
-    }, [filters, supabase, loadDashboardData, initError]); 
+    }, [filters, supabase, initError, loadDashboardData]); 
 
     const handleFilterChange = (newFilters) => {
-        setFilters(newFilters);
+        console.log('App.jsx: Filtros alterados para:', JSON.stringify(newFilters));
+        setFilters(newFilters); // Atualiza os filtros para que o useEffect reaja e recarregue
     };
 
     const handleCellClick = (estado, column, value) => {
         console.log(`Clicked: ${estado} - ${column} - ${value}`);
-        // Essa função ainda pode ser usada se você quiser interatividade ao clicar nas barras
     };
 
     const handleStateClick = (state) => {
@@ -129,7 +134,7 @@ function App() {
                             filters={filters} 
                             onFilterChange={handleFilterChange} 
                         />
-                        <XlsxUploader />
+                        <XlsxUploader onUploadSuccess={handleUploadSuccess} /> {/* Passa a função de callback */}
                     </div>
 
                     <div className="lg:col-span-3 space-y-6">
@@ -142,10 +147,9 @@ function App() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="h-[50vh]">
-                                <PerformanceBarChart // ATUALIZADO: Usando o novo componente
+                                <PerformanceBarChart 
                                     data={dashboardData.tabelaPerformance}
                                     onCellClick={handleCellClick}
-                                    onDownloadCSV={handleDownloadCSV}
                                 />
                             </div>
                             <div className="h-[50vh]">
@@ -160,8 +164,7 @@ function App() {
                 </div>
             </div>
         </div>
-        );
-    }
-
+    );
+}
 
 export default App;

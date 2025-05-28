@@ -33,59 +33,73 @@ const ALL_BRAZILIAN_STATES = [
     { id: 'TO', nome: 'Tocantins' }
 ];
 
-const PAGE_SIZE = 1000; // Tamanho da página para cada requisição (máximo padrão do Supabase)
+const PAGE_SIZE = 1000; 
 
 export const DataProcessor = {
-    fetchAndProcessDashboardData: async (supabaseClient, filters) => {
+    fetchAndProcessDashboardData: async (supabaseClient, filters, signal) => { 
         try {
-            console.log('Buscando dados do Supabase com filtros:', filters);
-            const { startDate, endDate } = filters;
+            console.log('dataProcessor.jsx: Início da busca de dados com filtros:', JSON.stringify(filters)); 
+            console.log(`dataProcessor.jsx: Filtros de data aplicados: startDate=${filters.startDate}, endDate=${filters.endDate}`); // Logar as datas de filtro
 
             let allData = [];
             let currentPage = 0;
             let hasMoreData = true;
 
             while (hasMoreData) {
+                if (signal && signal.aborted) {
+                    console.log('dataProcessor.jsx: Busca de dados abortada durante paginação.');
+                    throw new DOMException('Requisição abortada', 'AbortError'); 
+                }
+
+                const rangeStart = currentPage * PAGE_SIZE;
+                const rangeEnd = rangeStart + PAGE_SIZE - 1; // Ajustado para ser mais explícito
+                console.log(`dataProcessor.jsx: Buscando página ${currentPage + 1} no range ${rangeStart}-${rangeEnd}`);
+
                 let query = supabaseClient
                     .from('deliveries')
                     .select('arflash, abertura_da_conta, recepcionado_em, uf, situacao')
-                    .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1); // Define o range da paginação
+                    .range(rangeStart, rangeEnd);
 
-                if (startDate) {
-                    query = query.gte('abertura_da_conta', startDate);
+                if (filters.startDate) { 
+                    query = query.gte('abertura_da_conta', filters.startDate);
                 }
-                if (endDate) {
-                    query = query.lte('abertura_da_conta', endDate);
+                if (filters.endDate) {
+                    query = query.lte('abertura_da_conta', filters.endDate);
                 }
 
                 const { data, error } = await query;
 
                 if (error) {
-                    console.error('Erro ao buscar página de dados do Supabase:', error);
+                    console.error('dataProcessor.jsx: Erro ao buscar página de dados do Supabase:', error);
                     throw error;
                 }
 
                 if (data.length === 0) {
-                    hasMoreData = false; // Não há mais dados a serem buscados
+                    hasMoreData = false;
+                    console.log(`dataProcessor.jsx: Página ${currentPage + 1} retornou 0 registros. Encerrando busca.`);
                 } else {
-                    allData = allData.concat(data); // Adiciona os dados da página atual
+                    allData = allData.concat(data);
                     currentPage++;
-                    console.log(`Página ${currentPage} carregada. Total de registros até agora: ${allData.length}`);
-                    // Se a página não retornou o tamanho máximo, provavelmente é a última página.
-                    if (data.length < PAGE_SIZE) {
-                        hasMoreData = false;
+                    console.log(`dataProcessor.jsx: Página ${currentPage} carregada. Registros nesta página: ${data.length}. Total de registros buscados até agora: ${allData.length}`);
+                    
+                    if (data.length < PAGE_SIZE) { // Se o número de registros retornados é menor que o PAGE_SIZE, é a última página.
+                        hasMoreData = false; 
+                        console.log(`dataProcessor.jsx: Página ${currentPage} retornou menos que o PAGE_SIZE (${data.length} < ${PAGE_SIZE}). Assumindo última página.`);
                     }
                 }
             }
 
-            console.log('Total de registros recebidos do Supabase (todas as páginas):', allData.length);
-            // console.log('Dados brutos recebidos do Supabase:', allData); // Descomente para ver todos os dados se precisar
+            console.log('dataProcessor.jsx: Total final de registros recebidos do Supabase (todas as páginas):', allData.length);
+            // console.log('dataProcessor.jsx: Dados brutos ALL_DATA recebidos do Supabase:', allData); // Descomente para ver todos os dados se precisar
 
             const processedData = DataProcessor.processRawData(allData, filters);
-            return processedData;
+            return { ...processedData, rawData: allData }; 
 
         } catch (error) {
-            console.error('Erro em fetchAndProcessDashboardData:', error);
+            if (error.name === 'AbortError') {
+                throw error;
+            }
+            console.error('dataProcessor.jsx: Erro em fetchAndProcessDashboardData:', error);
             throw error;
         }
     },
@@ -104,7 +118,8 @@ export const DataProcessor = {
             headerInfo,
             tabelaPerformance,
             mapaPerformance,
-            metricasRodape
+            metricasRodape,
+            rawData: rawData 
         };
     },
 
@@ -121,7 +136,7 @@ export const DataProcessor = {
             const recepcionadoDate = new Date(item.recepcionado_em);
 
             if (isNaN(recepcionadoDate.getTime())) { 
-                console.warn(`Data de recebimento inválida para ARFLASH: ${item.arflash}, Data: ${item.recepcionado_em}`);
+                console.warn(`dataProcessor.jsx: Data de recebimento inválida para ARFLASH: ${item.arflash}, Data: ${item.recepcionado_em}`);
                 return; 
             }
             recepcionadoDate.setHours(0, 0, 0, 0);
@@ -154,32 +169,30 @@ export const DataProcessor = {
         const stateNames = ALL_BRAZILIAN_STATES;
 
         stateNames.forEach(state => {
-            stateCounts[state.id] = { total: 0 }; // Agora só precisamos do total
+            stateCounts[state.id] = { total: 0 }; 
         });
 
         data.forEach(item => {
             const ufEntry = stateNames.find(s => s.id === item.uf);
             if (ufEntry) {
                 const stateKey = ufEntry.id;
-                stateCounts[stateKey].total++; // Conta o total de itens por estado
+                stateCounts[stateKey].total++; 
             }
         });
 
         const desempenhoEstados = stateNames.map(state => {
             const total = stateCounts[state.id].total;
-            // A métrica 'performance' agora será o 'total' de itens, para colorir o mapa
             return {
                 id: state.id,
                 nome: state.nome,
-                performance: total // O valor para colorir o mapa é o total de itens
+                performance: total 
             };
         });
 
-        // 'performanceTotal' será removido da UI, então podemos retornar 0 ou null aqui
         const performanceTotal = 0; 
 
         return {
-            performanceTotal: performanceTotal, // Retorna 0 (ou null) para ser ignorado
+            performanceTotal: performanceTotal, 
             desempenhoEstados: desempenhoEstados
         };
     },
@@ -192,7 +205,7 @@ export const DataProcessor = {
             naoLocalizado: 0,
             recusa: 0,
             fragmentado: 0,
-            devolucao: 0 
+            // 'devolucao' foi removido permanentemente aqui
         };
 
         const uniqueSituations = new Map();
@@ -203,17 +216,17 @@ export const DataProcessor = {
             uniqueSituations.set(situacaoExcel, (uniqueSituations.get(situacaoExcel) || 0) + 1);
 
             switch (situacaoExcel) {
-                case 'ESTOQUE':
+                case 'ESTOQUE': 
                 case 'EM ESTOQUE - FLASH':
                     metrics.estoque++;
                     break;
                 case 'PREPARADO PARA ENVIO': 
                 case 'PREPRARADO PARA ENVIO': 
-                case 'SEPARADO': // Adicionado para cobrir a string exata 'SEPARADO'
+                case 'SEPARADO': 
                     metrics.separado++; 
                     break;
                 case 'SAIDA':
-                case 'ENVIADO': // Adicionado para cobrir a string exata 'ENVIADO'
+                case 'ENVIADO': 
                     metrics.enviado++; 
                     break;
                 case 'FRAGMENTADO': 
@@ -225,24 +238,21 @@ export const DataProcessor = {
                 case 'RECUSA': 
                     metrics.recusa++;
                     break;
-                case 'DEVOLUÇÃO': 
-                    metrics.devolucao++;
-                    break;
                 default:
-                    console.warn(`Situação não mapeada: "${item.situacao}" (Normalizada: "${situacaoExcel}").`);
+                    console.warn(`dataProcessor.jsx: Situação não mapeada: "${item.situacao}" (Normalizada: "${situacaoExcel}"). Verifique a grafia e se a situação é esperada.`);
                     break;
             }
         });
 
-        console.log('Contagem de TODAS as situações únicas encontradas no banco de dados:');
+        console.log('dataProcessor.jsx: Contagem de TODAS as situações únicas encontradas no banco de dados:');
         uniqueSituations.forEach((count, situation) => {
             console.log(`- "${situation}": ${count} ocorrências`);
         });
-        console.log('Métricas finais calculadas (KPIs):', metrics); 
+        console.log('dataProcessor.jsx: Métricas finais calculadas (KPIs):', metrics); 
         return metrics;
     },
 
-    processFilters: (filters) => {
+    processFilters: (filters) => { // Esta função de processFilters ainda é usada pelo FilterPanel, mas não na busca principal
         return {
             startDate: filters.startDate || '2025-04-28',
             endDate: '2025-05-23'
