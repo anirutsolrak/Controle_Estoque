@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SEU CSS PERSONALIZADO DO ARQUIVO styles.css DEVE VIR ABAIXO DESTAS LINHAS TAILWIND */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-container {
+    background: #f8f9fa;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Ajusta as propriedades base para os "cards" */
+.filter-panel, .metric-card, .performance-table, .map-container, .csv-uploader {
+    border-radius: 12px; /* rounded-xl */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+}
+
+/* Mantém o background para filter-panel e performance-table */
+.filter-panel, .performance-table, .map-container, .csv-uploader {
+    background: white;
+    border: 1px solid #e2e8f0; /* border border-gray-200/100 */
+}
+
+.metric-card {
+    /* Background será definido pelo prop 'color' ou gradiente no JSX */
+    text-align: center;
+}
+
+.metric-card-large {
+    padding: 20px 20px; /* Reduzido o padding vertical */
+    min-height: 100px; /* Reduzido o min-height */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.metric-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+.table-header {
+    background: #f8f9fa;
+    padding: 15px 20px;
+    border-bottom: 1px solid #dee2e6;
+    border-top-left-radius: 12px; /* Arredondar só a parte de cima */
+    border-top-right-radius: 12px;
+}
+
+.clickable-number {
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.clickable-number:hover {
+    color: #0056b3;
+}
+
+.brazil-map svg {
+    width: 100%;
+    height: auto;
+}
+
+.state-path {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.state-path:hover {
+    opacity: 0.8;
+}
+
+.tooltip {
+    position: absolute; 
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+}
