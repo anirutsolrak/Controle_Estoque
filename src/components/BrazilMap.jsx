@@ -203,15 +203,15 @@ export default function BrazilMap({ data, onStateClick, performanceTotal }) {
 
             legendGroup.append('text')
                 .attr('x', 0)
-                .attr('y', legendHeight + 10)
-                .attr('font-size', '10px')
+                .attr('y', legendHeight + 13)
+                .attr('font-size', '13px')
                 .attr('fill', '#475569')
                 .text(formatLegendValue(minMetricValue));
 
             legendGroup.append('text')
                 .attr('x', legendWidth)
-                .attr('y', legendHeight + 10)
-                .attr('font-size', '10px')
+                .attr('y', legendHeight + 13)
+                .attr('font-size', '15px')
                 .attr('fill', '#475569')
                 .attr('text-anchor', 'end')
                 .text(formatLegendValue(maxMetricValue));
